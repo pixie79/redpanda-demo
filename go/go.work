@@ -1,0 +1,11 @@
+go 1.22.4
+
+toolchain go1.22.4
+
+use (
+	./pixie79/generate-test-data
+	./pixie79/load-test-data
+	./pixie79/types
+	./pixie79/utils
+	./transform/demo
+)

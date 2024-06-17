@@ -1,0 +1,161 @@
+{
+    "type": "record",
+    "name": "CustomerEvent",
+    "namespace": "com.demo.event.v1",
+    "fields": [
+        {
+            "name": "metadata",
+            "type": {
+                "type": "record",
+                "name": "EventMetadata",
+                "doc": "Represents common event meta-data of interest",
+                "fields": [
+                    {
+                        "name": "message_key",
+                        "type": "string",
+                        "doc": "Denotes the unique key for the message from this topic"
+                    },
+                    {
+                        "name": "created_date",
+                        "type": {
+                            "type": "long",
+                            "logicalType": "timestamp-millis"
+                        },
+                        "doc": "The service timestamp value associated with the commit point in the platform database giving rise to the INSERT operation recorded in 'milliseconds since epoch' format"
+                    },
+                    {
+                        "name": "updated_date",
+                        "type": {
+                            "type": "long",
+                            "logicalType": "timestamp-millis"
+                        },
+                        "doc": "The service timestamp value associated with the commit point in the platform database giving rise to the UPDATE or INSERT operation recorded in 'milliseconds since epoch' format"
+                    },
+                    {
+                        "name": "outbox_published_date",
+                        "type": {
+                            "type": "long",
+                            "logicalType": "timestamp-millis"
+                        },
+                        "doc": "Timestamp value associated with the commit point in the platform when the message was committed to the service outbox pattern prior to publication to Kafka"
+                    },
+                    {
+                        "name": "event_type",
+                        "type": "string",
+                        "doc": "The field denotes whether the message relates to an INSERT event for the primary key of the 'top-level entity' of the topic being mastered in the system of record or is otherwise an UPDATE or DELETE event"
+                    }
+                ]
+            }
+        },
+        {
+            "name": "payload",
+            "type": {
+                "type": "record",
+                "name": "Customer",
+                "fields": [
+                    {
+                        "name": "id",
+                        "type": "string",
+                        "doc": "The unique key that has been internally assigned to the party"
+                    },
+                    {
+                        "name": "title",
+                        "type": [
+                            "null",
+                            "string"
+                        ],
+                        "doc": "ENUM - Title for the party. DOCT - Doctor, MIST - Mr, MISS - Miss, MADM - Madame",
+                        "default": null
+                    },
+                    {
+                        "name": "preferred_name",
+                        "type": [
+                            "null",
+                            "string"
+                        ],
+                        "doc": "Name which party has indicated is their preferred name",
+                        "default": null
+                    },
+                    {
+                        "name": "given_name",
+                        "type": [
+                            "null",
+                            "string"
+                        ],
+                        "doc": "Party’s first name",
+                        "default": null
+                    },
+                    {
+                        "name": "last_name",
+                        "type": [
+                            "null",
+                            "string"
+                        ],
+                        "doc": "Party’s surname",
+                        "default": null
+                    },
+                    {
+                        "name": "middle_name",
+                        "type": [
+                            "null",
+                            "string"
+                        ],
+                        "doc": "Party’s middle name",
+                        "default": null
+                    },
+                    {
+                        "name": "date_of_birth",
+                        "type": [
+                            "null",
+                            {
+                                "type": "int",
+                                "logicalType": "date"
+                            }
+                        ],
+                        "doc": "Date party was born",
+                        "default": null
+                    },
+                    {
+                        "name": "date_of_death",
+                        "type": [
+                            "null",
+                            {
+                                "type": "int",
+                                "logicalType": "date"
+                            }
+                        ],
+                        "doc": "Date party passed away",
+                        "default": null
+                    },
+                    {
+                        "name": "gender",
+                        "type": [
+                            "null",
+                            "string"
+                        ],
+                        "doc": "ENUM - Gender of the party. MALE - male, FEMALE - female, NA - not declared",
+                        "default": null
+                    },
+                    {
+                        "name": "place_of_birth",
+                        "type": [
+                            "null",
+                            "string"
+                        ],
+                        "doc": "Location party was born",
+                        "default": null
+                    },
+                    {
+                        "name": "country_of_residence",
+                        "type": [
+                            "null",
+                            "string"
+                        ],
+                        "doc": "Country of party residence",
+                        "default": null
+                    }
+                ]
+            }
+        }
+    ]
+}

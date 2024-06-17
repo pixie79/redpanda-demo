@@ -1,0 +1,137 @@
+version: "3"
+
+dotenv:
+    - .env
+    - "{{.ENV}}/.env."
+    - "{{.HOME}}/.env"
+
+vars:
+    UNMASKED_CUSTOMERS: '"[{\\\"last_name\\\": \\\"Smith\\\",\\\"first_name\\\": \\\"Jane\\\"}]"'
+    LOG_LEVEL: INFO
+
+env:
+    REDPANDA_VERSION: latest
+    REDPANDA_CONSOLE_VERSION: latest
+    GRAFANA_VERSION: latest
+    PROMETHEUS_VERSION: latest
+    ALERT_MANAGER_VERSION: latest
+    REDPANDA_CONNECT_VERSION: latest
+    MAILPIT_VERSION: latest
+    SCHEMA_REGISTRY_URL: http://localhost:18081
+    REDPANDA_SEED_URL: localhost:19092
+
+tasks:
+    check:
+        cmds:
+            - trunk check -a
+
+    tests:
+        dir: go
+        cmds:
+            - rpk profile use test
+            - go test -v ./pixie79/*
+            - go test -v ./transform/*/tests/
+
+    clean:
+        cmds:
+            - task: demo-stop
+            - rm -rf go/transform/*/*.wasm
+            - rm -f test-data/*.json
+            - rm -f bin/*
+            - rm -f docker/mailpit/data/mailpit.*
+
+    build:
+        dir: go/transform/{{.NAME}}
+        cmds:
+            - rpk transform build
+
+    list:
+        cmds:
+            - rpk transform list
+
+    deploy-demo:
+        deps:
+            - task: build
+              vars:
+                  NAME: "{{.NAME}}"
+        dir: go/transform/{{.NAME}}
+        cmds:
+            - echo "Deploying Transform {{ .NAME }}"
+            - ls
+            - rpk transform deploy --file {{ .NAME }}.wasm --name {{ .NAME }}
+              --input-topic {{ .REDPANDA_INPUT_TOPIC }} --output-topic {{ .REDPANDA_OUTPUT_TOPIC }} --var
+              DESTINATION_SCHEMA_ID={{.DESTINATION_SCHEMA_ID}} --var UNMASKED_CUSTOMERS={{ .UNMASKED_CUSTOMERS }} --var LOG_LEVEL={{ .LOG_LEVEL }}
+        vars:
+            NAME: demo
+            REDPANDA_INPUT_TOPIC: demo
+            REDPANDA_OUTPUT_TOPIC: output-demo
+            DESTINATION_SCHEMA_ID:
+                sh: rpk registry schema get output-demo-value --schema-version latest --format json | jq '.[0].id'
+
+    delete:
+        cmds:
+            - rpk transform delete {{.NAME}}
+
+    demo-start:
+        cmds:
+            - task: docker-up
+            - sleep 10
+            - rpk profile create demo --from-profile rpk-docker-profile.yml
+            - rpk profile use demo
+            - rpk registry schema create demo-value --schema schemas/demo.avsc
+            - rpk registry schema create output-demo-value --schema schemas/demo.avsc
+            - rpk topic create __redpanda.connect.logs demo output-demo
+            - echo "Grafana running on http://localhost:3000"
+            - echo "Redpanda console running on http://localhost:8080"
+            - echo "Mailpit running on http://localhost:8025"
+            - echo "Prometheus running on http://localhost:9090"
+            - echo "Alertmanager running on http://localhost:9093"
+
+    docker-up:
+        cmds:
+            - docker-compose up -d --wait
+
+    docker-stop:
+        cmds:
+            - docker-compose down -v
+            - rpk profile delete demo
+
+    demo-stop:
+        cmds:
+            - docker-compose down -v --remove-orphans
+
+    create-rpk-test-profile:
+        cmds:
+            - rpk profile create test --from-profile rpk-test-profile.yml
+
+    transform-logs:
+        cmds:
+            - rpk transform logs $NAME -f
+        env:
+            NAME: "{{.NAME}}"
+
+    generate-test-data:
+        dir: test-data
+        cmds:
+            - ../bin/generate-test-data -t demoEvent -n 1000 -o demoEvent.json
+
+    build-test-data-generator:
+        dir: go
+        cmds:
+            - go build -o ../bin/generate-test-data pixie79/generate-test-data
+
+    build-test-data-loader:
+        dir: go
+        cmds:
+            - go build -o ../bin/load-test-data pixie79/load-test-data
+
+    load-td-demoEvent:
+        dir: test-data
+        cmds:
+            - ../bin/load-test-data -filename demoEvent.json -t demoEvent
+        env:
+            REDPANDA_INPUT_TOPIC: demo
+            DESTINATION_SCHEMA_ID:
+                sh:
+                    rpk registry schema get output-demo-value --schema-version latest --format
+                    json | jq '.[0].id'

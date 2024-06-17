@@ -1,0 +1,2 @@
+language: tinygo-no-goroutines
+name: demo

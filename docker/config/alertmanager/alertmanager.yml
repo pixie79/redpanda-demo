@@ -1,0 +1,12 @@
+route:
+    receiver: mailpit
+    repeat_interval: 4h
+    group_by: [alertname]
+
+receivers:
+    - name: mailpit
+      email_configs:
+          - smarthost: mailpit:1025
+            from: alertmanager@observability-demo.redpanda.com
+            to: recipient@observability-demo.redpanda.com
+            require_tls: false

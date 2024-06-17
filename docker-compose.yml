@@ -1,0 +1,157 @@
+name: redpanda-demo
+networks:
+    redpanda_network:
+        driver: bridge
+
+volumes:
+    redpanda-0: null
+
+services:
+    redpanda-0:
+        command:
+            - redpanda
+            - start
+            - --kafka-addr internal://0.0.0.0:9092,external://0.0.0.0:19092
+            # Address the broker advertises to clients that connect to the Kafka API.
+            # Use the internal addresses to connect to the Redpanda brokers'
+            # from inside the same Docker network.
+            # Use the external addresses to connect to the Redpanda brokers'
+            # from outside the Docker network.
+            - --advertise-kafka-addr internal://redpanda-0:9092,external://localhost:19092
+            - --pandaproxy-addr internal://0.0.0.0:8082,external://0.0.0.0:18082
+            # Address the broker advertises to clients that connect to the HTTP Proxy.
+            - --advertise-pandaproxy-addr internal://redpanda-0:8082,external://localhost:18082
+            - --schema-registry-addr internal://0.0.0.0:8081,external://0.0.0.0:18081
+            # Redpanda brokers use the RPC API to communicate with each other internally.
+            - --rpc-addr redpanda-0:33145
+            - --advertise-rpc-addr redpanda-0:33145
+            - --mode dev-container
+            - --smp 1
+            - --default-log-level=info
+        image: docker.redpanda.com/redpandadata/redpanda:${REDPANDA_VERSION}
+        container_name: redpanda-0
+        volumes:
+            - redpanda-0:/var/lib/redpanda/data
+            - ./.bootstrap.yaml:/etc/redpanda/.bootstrap.yaml
+        networks:
+            - redpanda_network
+        ports:
+            - 18081:18081
+            - 18082:18082
+            - 19092:19092
+            - 19644:9644
+
+    console:
+        container_name: redpanda-console
+        image: docker.redpanda.com/redpandadata/console:${REDPANDA_CONSOLE_VERSION}
+        networks:
+            - redpanda_network
+        entrypoint: /bin/sh
+        command: -c 'echo "$$CONSOLE_CONFIG_FILE" > /tmp/config.yml; /app/console'
+        environment:
+            CONFIG_FILEPATH: /tmp/config.yml
+            CONSOLE_CONFIG_FILE: |
+                kafka:
+                  brokers: ["redpanda-0:9092"]
+                  schemaRegistry:
+                    enabled: true
+                    urls: ["http://redpanda-0:8081"]
+                redpanda:
+                  adminApi:
+                    enabled: true
+                    urls: ["http://redpanda-0:9644"]
+                connect:
+                  enabled: true
+                  clusters:
+                    - name: connect
+                      url: http://connect:8083
+        ports:
+            - 8080:8080
+        depends_on:
+            - redpanda-0
+
+    grafana:
+        image: grafana/grafana:${GRAFANA_VERSION}
+        container_name: grafana
+        environment:
+            - GF_AUTH_ANONYMOUS_ENABLED=true
+            - GF_AUTH_ANONYMOUS_ORG_ROLE=Admin
+            - GF_AUTH_ANONYMOUS_HIDE_VERSION=true
+        volumes:
+            # Mount provisioning configuration
+            - ./docker/config/grafana/provisioning:/etc/grafana/provisioning
+            # Mount dashboards
+            - ./docker/config/grafana/dashboards:/var/lib/grafana/dashboards
+        ports:
+            - 3000:3000
+        networks:
+            - redpanda_network
+
+    prometheus:
+        image: prom/prometheus:${PROMETHEUS_VERSION}
+        container_name: prometheus
+        # Mount prometheus configuration
+        volumes:
+            - ./docker/config/prometheus:/etc/prometheus
+        ports:
+            - 9090:9090
+        networks:
+            - redpanda_network
+
+    alertmanager:
+        image: prom/alertmanager:${ALERT_MANAGER_VERSION}
+        container_name: alertmanager
+        hostname: alertmanager
+        ports:
+            - 9093:9093
+        volumes:
+            - ./docker/config/alertmanager:/config
+        command: --config.file=/config/alertmanager.yml --log.level=info
+        networks:
+            - redpanda_network
+
+    connect:
+        image: docker.redpanda.com/redpandadata/connectors:${REDPANDA_CONNECT_VERSION}
+        hostname: connect
+        container_name: connect
+        depends_on:
+            - redpanda-0
+        networks:
+            - redpanda_network
+        ports:
+            - 8083:8083
+        environment:
+            CONNECT_CONFIGURATION: |
+                key.converter=org.apache.kafka.connect.converters.ByteArrayConverter
+                value.converter=org.apache.kafka.connect.converters.ByteArrayConverter
+                group.id=connectors-cluster
+                offset.storage.topic=_internal_connectors_offsets
+                config.storage.topic=_internal_connectors_configs
+                status.storage.topic=_internal_connectors_status
+                config.storage.replication.factor=-1
+                offset.storage.replication.factor=-1
+                status.storage.replication.factor=-1
+                offset.flush.interval.ms=1000
+                producer.linger.ms=50
+                producer.batch.size=131072
+            CONNECT_BOOTSTRAP_SERVERS: redpanda-0:9092
+            CONNECT_GC_LOG_ENABLED: "false"
+            CONNECT_HEAP_OPTS: -Xms512M -Xmx512M
+            CONNECT_LOG_LEVEL: info
+
+    mailpit:
+        image: axllent/mailpit:${MAILPIT_VERSION}
+        container_name: mailpit
+        restart: unless-stopped
+        networks:
+            - redpanda_network
+        volumes:
+            - ./docker/mailpit/data:/data
+        ports:
+            - 8025:8025
+            - 1025:1025
+        environment:
+            MP_MAX_MESSAGES: 5000
+            MP_DATABASE: /data/mailpit.db
+            MP_SMTP_AUTH_ACCEPT_ANY: 1
+            MP_SMTP_AUTH_ALLOW_INSECURE: 1
