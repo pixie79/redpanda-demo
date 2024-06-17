@@ -94,11 +94,11 @@ tasks:
     docker-stop:
         cmds:
             - docker-compose down -v
-            - rpk profile delete demo
 
     demo-stop:
         cmds:
             - docker-compose down -v --remove-orphans
+            - rpk profile delete demo
 
     create-rpk-test-profile:
         cmds:
