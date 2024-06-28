@@ -31,45 +31,48 @@ var (
 )
 
 const (
-	testDataInput1 = `{
+	testDataInput1 = `  {
 		"metadata": {
-		  "message_key": "C70q8F4CRP",
-		  "created_date": 1466744875852,
-		  "updated_date": 1568121733758,
-		  "outbox_published_date": 1087257517118,
-		  "event_type": "UPDATE"
+		"message_key": "tnKGDKUndl",
+		"created_date": 1296997036167,
+		"updated_date": 693745893153,
+		"outbox_published_date": 1203458653655,
+		"event_type": "INSERT"
 		},
-		"payload": {
-		  "given_name": "John",
-		  "last_name": "Doe",
-		  "middle_name": "C",
-		  "date_of_birth": 15981,
-		  "gender": "Male",
-		  "place_of_birth": "New York",
-		  "country_of_residence": "USA"
-		}
-	  }`
+		"business_data_payload": {
+			"id": "PKs-Is7j",
+			"name_prefix": "Mr",
+			"preferred_name": "Tom",
+			"given_name": "Tom",
+			"last_name": "Jones",
+			"middle_name": "A",
+			"place_of_birth": "Sydney",
+			"country_of_residence": "UK"
+			}
+		}`
 	testDataOutput1 = `{
 		"metadata": {
-		  "message_key": "C70q8F4CRP",
-		  "created_date": 1466744875852,
-		  "updated_date": 1568121733758,
-		  "outbox_published_date": 1087257517118,
-		  "event_type": "UPDATE"
+		"message_key": "tnKGDKUndl",
+		"created_date": 1296997036167,
+		"updated_date": 693745893153,
+		"outbox_published_date": 1203458653655,
+		"event_type": "INSERT"
 		},
-		"payload": {
-			"given_name": "John",
-			"last_name": "Doe",
-			"middle_name": "C",
-			"date_of_birth": 15981,
-			"gender": "Male",
-			"place_of_birth": "New York",
-			"country_of_residence": "USA"
-		  }
-	  }`
+		"business_data_payload": {
+			"id": "PKs-Is7j",
+			"name_prefix": "Mr",
+			"preferred_name": "Tom",
+			"given_name": "******",
+			"last_name": "******",
+			"middle_name": "A",
+			"place_of_birth": "Sydney",
+			"country_of_residence": "UK"
+			}
+		}`
 )
 
 func TestMain(m *testing.M) {
+	pUtils.SetupLogger()
 	stop, kgoClient, kafkaAdminClient, adminClient, schemaClient, container = pTUtils.StartTest(ctx)
 	// Run tests
 	exitcode := m.Run()
@@ -83,7 +86,7 @@ func TestDemo(t *testing.T) {
 		inputTopic  = "demo"
 		outputTopic = "output-demo"
 		wasmFile    = "../demo.wasm"
-		schemaFile  = "../../../../schemas/demo/" + inputTopic + ".avsc"
+		schemaFile  = "../../../../schemas/" + inputTopic + ".avsc"
 		recordType  = "demoEvent"
 	)
 
@@ -98,8 +101,9 @@ func TestDemo(t *testing.T) {
 		InputTopic:   inputTopic,
 		OutputTopics: []string{outputTopic},
 		Environment: []pTUtils.EnvironmentVariable{
-			{Key: "LOG_LEVEL", Value: "DEBUG"},
+			// {Key: "LOG_LEVEL", Value: "DEBUG"},
 			{Key: "DESTINATION_SCHEMA_ID", Value: strconv.Itoa(destinationSchemaId)},
+			{Key: "UNMASKED_CUSTOMERS", Value: "[{\\\"last_name\\\": \\\"Smith\\\",\\\"first_name\\\": \\\"Jane\\\"}]"},
 		},
 	}
 
@@ -128,6 +132,7 @@ func TestDemo(t *testing.T) {
 	err = client.ProduceSync(ctx, inputData1).FirstErr()
 	require.NoError(t, err)
 	fetches := client.PollFetches(ctx)
+	slog.Debug("Transform record produced", "record", fetches)
 	pTUtils.RequireRecordsEquals(t, fetches, outputData1)
 
 }
